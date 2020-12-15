@@ -19,7 +19,7 @@ spec:
       - name: standard
       containers:
       - name: mysql-exporter
-        image: harbor.yunyang.com.cn/library/mysql-exporter:1.1
+        image: mysql-exporter:1.1
         imagePullPolicy: "Always"
         ports:
         - containerPort: 8024
