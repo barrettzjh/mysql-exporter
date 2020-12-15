@@ -1,22 +1,20 @@
 package module
 
 import (
+	"database/sql"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
-
-	//"log"
-
-	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
-	c = Conf{}
+	c         = Conf{}
 	Configure = c.getConf()
-	Client = GetMysqlClient()
+	Client    = GetMysqlClient()
 )
 
 type Conf struct {
@@ -37,12 +35,12 @@ func (c *Conf) getConf() *Conf {
 	return c
 }
 
-func GetMysqlClient()map[string]*sql.DB{
+func GetMysqlClient() map[string]*sql.DB {
 	var db *sql.DB
 	var err error
 	sliceClient := make(map[string]*sql.DB)
 	var index string
-	for _, v := range strings.Split(Configure.MysqlUrl, ";"){
+	for _, v := range strings.Split(os.Getenv("mysqlUrl"), ";") {
 		index = strings.Split(strings.Split(v, "tcp(")[1], ":")[0]
 		db, err = sql.Open("mysql", v)
 		if err != nil {
@@ -53,22 +51,22 @@ func GetMysqlClient()map[string]*sql.DB{
 	return sliceClient
 }
 
-func GetMysqlStorage()map[string]map[string]string{
+func GetMysqlStorage() map[string]map[string]string {
 	var schema, gb string
 	mapStorage := make(map[string]string)
 	sliceStorage := make(map[string]map[string]string)
-	for f,j := range Client{
+	for f, j := range Client {
 		mapStorage = map[string]string{}
 		rows, err := j.Query("SELECT table_schema,SUM(AVG_ROW_LENGTH*TABLE_ROWS+INDEX_LENGTH) AS total_mb FROM information_schema.TABLES group by table_schema;\n")
-		if err != nil{
+		if err != nil {
 			fmt.Println(err)
 		}
-		for rows.Next(){
+		for rows.Next() {
 			err := rows.Scan(&schema, &gb)
-			if schema == "information_schema"{
+			if schema == "information_schema" {
 				continue
 			}
-			if err != nil{
+			if err != nil {
 				fmt.Println(err)
 			}
 			mapStorage[schema] = gb
@@ -78,19 +76,19 @@ func GetMysqlStorage()map[string]map[string]string{
 	return sliceStorage
 }
 
-func GetMysqlStatus()map[string]map[string]string{
+func GetMysqlStatus() map[string]map[string]string {
 	var name, value string
 	mapStatus := make(map[string]string)
 	sliceStatus := make(map[string]map[string]string)
-	for f,j := range Client{
+	for f, j := range Client {
 		mapStatus = map[string]string{}
 		rows, err := j.Query("show status;")
-		if err != nil{
+		if err != nil {
 			fmt.Println(err)
 		}
-		for rows.Next(){
+		for rows.Next() {
 			err = rows.Scan(&name, &value)
-			if err != nil{
+			if err != nil {
 				fmt.Println(err)
 			}
 			mapStatus[name] = value
@@ -100,10 +98,32 @@ func GetMysqlStatus()map[string]map[string]string{
 	return sliceStatus
 }
 
-func StringToFloat(v string) (float64, error){
+func StringToFloat(v string) (float64, error) {
 	v2, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		return 0, err
 	}
 	return v2, err
+}
+
+func GetMysqlSlowQuery() map[string]map[string]string {
+	var info, time string
+	mapStatus := make(map[string]string)
+	sliceStatus := make(map[string]map[string]string)
+	for f, j := range Client {
+		mapStatus = map[string]string{}
+		rows, err := j.Query("select time,info from information_schema.processlist where Command != 'Sleep' and TIME > 3;")
+		if err != nil {
+			fmt.Println("query", err.Error())
+		}
+		for rows.Next() {
+			err = rows.Scan(&time, &info)
+			if err != nil {
+				fmt.Println("scan", err.Error())
+			}
+			mapStatus[info] = time
+		}
+		sliceStatus[f] = mapStatus
+	}
+	return sliceStatus
 }
